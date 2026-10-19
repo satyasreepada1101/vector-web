@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   FolderOpen
 } from 'lucide-react';
+import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts';
 
 interface OverviewPageProps {
   onStartNewAnalysis: () => void;
@@ -310,53 +311,115 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
           )}
         </div>
 
-        {/* Risk Distribution Breakdown Card */}
+        {/* Risk Distribution Breakdown Card with Recharts Donut Chart */}
         <div className="lg:col-span-4 bg-[#FFFFFF] rounded-xl border border-[#E5E2D8] shadow-xs p-5 sm:p-6 space-y-4">
-          <div className="flex items-center gap-2">
-            <BarChart3 className="w-4 h-4 text-[#49686C]" />
-            <h3 className="text-base font-bold text-[#283638]">
-              Risk Distribution
-            </h3>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <BarChart3 className="w-4 h-4 text-[#49686C]" />
+              <h3 className="text-base font-bold text-[#283638]">
+                Risk Distribution
+              </h3>
+            </div>
+            <span className="text-xs font-mono font-medium text-[#737A72]">
+              {totalCount} saved
+            </span>
           </div>
+
           <p className="text-xs text-[#737A72]">
-            Evaluated prompts categorized by severity tier.
+            Severity categorization across all stored analysis records.
           </p>
 
-          <div className="space-y-3 pt-2">
-            {(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'MINIMAL'] as RiskLevel[]).map((level) => {
-              const count = distribution[level];
-              const pct = totalCount > 0 ? Math.round((count / totalCount) * 100) : 0;
-              const barColors: Record<RiskLevel, string> = {
-                CRITICAL: 'bg-[#B94D42]',
-                HIGH: 'bg-[#C96839]',
-                MEDIUM: 'bg-[#D1B653]',
-                LOW: 'bg-[#688E5E]',
-                MINIMAL: 'bg-[#49686C]'
-              };
-
-              return (
-                <div key={level} className="space-y-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-[#283638] capitalize">
-                      {level.toLowerCase()}
-                    </span>
-                    <span className="font-mono text-[#737A72] tabular-nums">
-                      {count} ({pct}%)
-                    </span>
-                  </div>
-                  <div className="w-full h-2 bg-[#FAFAF8] border border-[#E5E2D8] rounded-full overflow-hidden">
-                    <div
-                      className={`h-full ${barColors[level]} rounded-full transition-all duration-500`}
-                      style={{ width: `${pct}%` }}
+          {totalCount === 0 ? (
+            <div className="py-8 text-center space-y-2 border border-dashed border-[#E5E2D8] rounded-lg bg-[#FAFAF8]">
+              <AlertTriangle className="w-6 h-6 text-[#CDC9BC] mx-auto" />
+              <span className="text-xs font-semibold text-[#283638] block">No analysis data</span>
+              <p className="text-[11px] text-[#737A72] max-w-[200px] mx-auto">
+                Evaluate a prompt to visualize risk distribution.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Responsive Donut Chart Container */}
+              <div className="h-44 w-full relative">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { name: 'Critical', value: distribution.CRITICAL, color: '#B94D42' },
+                        { name: 'High', value: distribution.HIGH, color: '#C96839' },
+                        { name: 'Medium', value: distribution.MEDIUM, color: '#D1B653' },
+                        { name: 'Low', value: distribution.LOW, color: '#688E5E' },
+                        { name: 'Minimal', value: distribution.MINIMAL, color: '#49686C' }
+                      ].filter(d => d.value > 0)}
+                      innerRadius={46}
+                      outerRadius={68}
+                      paddingAngle={3}
+                      dataKey="value"
+                      animationDuration={800}
+                    >
+                      {[
+                        { name: 'Critical', value: distribution.CRITICAL, color: '#B94D42' },
+                        { name: 'High', value: distribution.HIGH, color: '#C96839' },
+                        { name: 'Medium', value: distribution.MEDIUM, color: '#D1B653' },
+                        { name: 'Low', value: distribution.LOW, color: '#688E5E' },
+                        { name: 'Minimal', value: distribution.MINIMAL, color: '#49686C' }
+                      ].filter(d => d.value > 0).map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} stroke="transparent" />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value: any, name: any) => [`${value} prompt(s)`, name]}
+                      contentStyle={{
+                        backgroundColor: '#283638',
+                        color: '#FFFFFF',
+                        borderRadius: '8px',
+                        border: 'none',
+                        fontSize: '11px',
+                        padding: '6px 10px'
+                      }}
+                      itemStyle={{ color: '#FFFFFF' }}
                     />
-                  </div>
+                  </PieChart>
+                </ResponsiveContainer>
+                {/* Center metric */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                  <span className="text-lg font-bold font-mono text-[#283638] leading-tight">
+                    {totalCount}
+                  </span>
+                  <span className="text-[10px] text-[#737A72] uppercase font-semibold">
+                    Prompts
+                  </span>
                 </div>
-              );
-            })}
-          </div>
+              </div>
+
+              {/* Categorical Legend with Values and Percentages */}
+              <div className="space-y-2 pt-1 border-t border-[#E5E2D8]">
+                {[
+                  { level: 'CRITICAL', label: 'Critical Risk', count: distribution.CRITICAL, color: '#B94D42' },
+                  { level: 'HIGH', label: 'High Risk', count: distribution.HIGH, color: '#C96839' },
+                  { level: 'MEDIUM', label: 'Medium Risk', count: distribution.MEDIUM, color: '#D1B653' },
+                  { level: 'LOW', label: 'Low Risk', count: distribution.LOW, color: '#688E5E' },
+                  { level: 'MINIMAL', label: 'Minimal Risk', count: distribution.MINIMAL, color: '#49686C' }
+                ].map(({ level, label, count, color }) => {
+                  const pct = totalCount > 0 ? Math.round((count / totalCount) * 100) : 0;
+                  return (
+                    <div key={level} className="flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                        <span className="font-medium text-[#283638]">{label}</span>
+                      </div>
+                      <span className="font-mono text-[#737A72] tabular-nums">
+                        {count} <span className="text-[10px]">({pct}%)</span>
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="pt-3 border-t border-[#E5E2D8] text-[11px] text-[#737A72]">
-            Calculated strictly from {totalCount} records in local evaluation storage.
+            Aggregated dynamically from actual saved evaluations.
           </div>
         </div>
       </div>

@@ -9,7 +9,7 @@ import { DetectedResources } from '../components/analysis/DetectedResources.tsx'
 import { SecurityRequirementsList } from '../components/analysis/SecurityRequirementsList.tsx';
 import { ImprovedPromptPanel } from '../components/analysis/ImprovedPromptPanel.tsx';
 import { useToast } from '../components/ui/Toast.tsx';
-import { ArrowLeftRight, CheckCircle2, History } from 'lucide-react';
+import { ArrowLeftRight, CheckCircle2, History, Download, FileDown, Info, ShieldCheck } from 'lucide-react';
 
 interface NewAnalysisPageProps {
   initialResult?: AnalysisResult | null;
@@ -137,6 +137,98 @@ export const NewAnalysisPage: React.FC<NewAnalysisPageProps> = ({
     toast('Reset prompt to original text', 'info');
   };
 
+  const handleDownloadReport = (format: 'markdown' | 'json') => {
+    if (!currentResult) {
+      toast('No active analysis results to download.', 'error');
+      return;
+    }
+
+    try {
+      const dateStr = currentResult.createdAt
+        ? new Date(currentResult.createdAt).toISOString().split('T')[0]
+        : new Date().toISOString().split('T')[0];
+
+      let content = '';
+      let mimeType = '';
+      let filename = '';
+
+      if (format === 'markdown') {
+        filename = `vector-security-report-${dateStr}.md`;
+        mimeType = 'text/markdown;charset=utf-8';
+        content = [
+          `# Vector — Infrastructure Prompt Security Report`,
+          ``,
+          `Generated: ${currentResult.createdAt ? new Date(currentResult.createdAt).toLocaleString() : new Date().toLocaleString()}`,
+          `Analysis ID: ${currentResult.id}`,
+          ``,
+          `## 1. Original Infrastructure Prompt`,
+          `\`\`\``,
+          currentResult.prompt,
+          `\`\`\``,
+          ``,
+          `## 2. Risk Assessment`,
+          `- **Overall Risk Level:** ${currentResult.riskLevel}`,
+          `- **Risk Score:** ${currentResult.riskScore} / 100`,
+          `- **Security Coverage:** ${currentResult.coverageScore}%`,
+          `- **Rule Confidence:** ${currentResult.confidenceScore}%`,
+          ``,
+          `## 3. Detected AWS Resources`,
+          currentResult.resources.length > 0
+            ? currentResult.resources.map(r => `- **${r.label}** (${r.id.toUpperCase()}) — Category: ${r.category || 'General'}`).join('\n')
+            : `- No explicit AWS resources recognized in prompt.`,
+          ``,
+          `## 4. Risky Configurations Identified`,
+          currentResult.riskyFindings.length > 0
+            ? currentResult.riskyFindings.map(f => `### [${f.severity.toUpperCase()}] ${f.label}\n- **Why It Matters:** ${f.whyItMatters || f.description}\n- **Risky Statement:** \`${f.riskyStatement || 'N/A'}\`\n- **Recommended Fix:** ${f.fix || f.clause || 'Remediate configuration'}\n`).join('\n')
+            : `- No critical exposure declarations identified.`,
+          ``,
+          `## 5. Missing Security Baselines & Recommendations`,
+          currentResult.missing.length > 0
+            ? currentResult.missing.map(f => `### [${f.severity.toUpperCase()}] ${f.label}\n- **Description:** ${f.description}\n- **Dimension:** ${f.dimension || 'Security Baseline'}\n- **Standard Remediation Clause:** "${f.clause || 'Apply security best practice'}"\n`).join('\n')
+            : `- All baseline security controls declared.`,
+          ``,
+          `## 6. Declared Security Controls in Prompt`,
+          currentResult.mentioned.length > 0
+            ? currentResult.mentioned.map(f => `- **${f.label}:** ${f.description}`).join('\n')
+            : `- No explicit security controls declared in original prompt.`,
+          ``,
+          `## 7. Improved Prompt`,
+          `\`\`\``,
+          improvedPromptText || currentResult.prompt,
+          `\`\`\``,
+          ``,
+          `---`,
+          `*Advisory Disclaimer:* Analysis is advisory. Vector identifies potential security gaps using supported rules and information in your prompt. A low risk score does not guarantee secure infrastructure. Review recommendations and validate generated infrastructure before deployment.`
+        ].join('\n');
+      } else {
+        filename = `vector-security-report-${dateStr}.json`;
+        mimeType = 'application/json;charset=utf-8';
+        const exportData = {
+          reportTitle: 'Vector Infrastructure Prompt Security Report',
+          exportedAt: new Date().toISOString(),
+          analysis: currentResult,
+          improvedPrompt: improvedPromptText || currentResult.prompt,
+          advisory: 'Analysis is advisory. Vector identifies potential security gaps using supported rules and information in your prompt. A low risk score does not guarantee secure infrastructure. Review recommendations and validate generated infrastructure before deployment.'
+        };
+        content = JSON.stringify(exportData, null, 2);
+      }
+
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+      toast(`Report downloaded (${filename})`, 'success');
+    } catch {
+      toast('Failed to generate export file.', 'error');
+    }
+  };
+
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
       {/* Page Header */}
@@ -180,6 +272,51 @@ export const NewAnalysisPage: React.FC<NewAnalysisPageProps> = ({
       {/* Results Section */}
       {currentResult && (
         <div ref={resultsRef} className="space-y-6 pt-2 scroll-mt-6">
+          {/* Action Bar: Download Report & Advisory notice */}
+          <div className="bg-[#FFFFFF] p-4 rounded-xl border border-[#E5E2D8] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[#49686C]" />
+              <span className="text-xs font-bold text-[#283638]">
+                Diagnosis Complete
+              </span>
+              <span className="text-xs text-[#737A72] hidden md:inline">
+                · {currentResult.resources.length} resources identified
+              </span>
+            </div>
+
+            {/* Download Report Actions */}
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              <span className="text-xs font-medium text-[#737A72] mr-1 hidden sm:inline">
+                Download Report:
+              </span>
+              <button
+                type="button"
+                onClick={() => handleDownloadReport('markdown')}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#E5E2D8] bg-white hover:bg-[#F6F4EC] text-xs font-semibold text-[#283638] transition-colors shadow-xs"
+                title="Download formatted Markdown security report"
+              >
+                <FileDown className="w-3.5 h-3.5 text-[#49686C]" />
+                <span>Markdown (.md)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDownloadReport('json')}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#E5E2D8] bg-white hover:bg-[#F6F4EC] text-xs font-semibold text-[#283638] transition-colors shadow-xs"
+                title="Download raw JSON analysis data"
+              >
+                <Download className="w-3.5 h-3.5 text-[#49686C]" />
+                <span>JSON (.json)</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Concise Responsible-Use Advisory Note */}
+          <div className="p-3.5 rounded-xl bg-[#F6F4EC] border border-[#E5E2D8] flex items-start gap-2.5 text-xs text-[#737A72]">
+            <Info className="w-4 h-4 text-[#49686C] shrink-0 mt-0.5" />
+            <p className="leading-relaxed">
+              <strong className="text-[#283638]">Analysis is advisory.</strong> Vector identifies potential security gaps using supported rules and information in your prompt. A low risk score does not guarantee secure infrastructure. Review recommendations and validate generated infrastructure before deployment.
+            </p>
+          </div>
           {/* Version Switcher if Re-analysis was performed */}
           {revisedResult && (
             <div className="p-3 bg-[#FFFFFF] rounded-xl border border-[#E5E2D8] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">

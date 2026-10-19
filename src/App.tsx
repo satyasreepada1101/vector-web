@@ -4,6 +4,7 @@ import { ToastProvider } from './components/ui/Toast.tsx';
 import { ThemeProvider } from './context/ThemeContext.tsx';
 import { Sidebar } from './components/layout/Sidebar.tsx';
 import { Header } from './components/layout/Header.tsx';
+import { AboutPage } from './pages/AboutPage.tsx';
 import { OverviewPage } from './pages/OverviewPage.tsx';
 import { NewAnalysisPage } from './pages/NewAnalysisPage.tsx';
 import { HistoryPage } from './pages/HistoryPage.tsx';
@@ -11,7 +12,7 @@ import { GuidelinesPage } from './pages/GuidelinesPage.tsx';
 import { SettingsPage } from './pages/SettingsPage.tsx';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('about');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [analysisToInspect, setAnalysisToInspect] = useState<AnalysisResult | null>(null);
@@ -60,6 +61,12 @@ export default function App() {
 
           {/* Main Content Area */}
           <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-[1600px] w-full mx-auto" role="main">
+            {activeTab === 'about' && (
+              <AboutPage
+                onStartAnalysis={handleStartNewAnalysis}
+              />
+            )}
+
             {activeTab === 'overview' && (
               <OverviewPage
                 onStartNewAnalysis={handleStartNewAnalysis}

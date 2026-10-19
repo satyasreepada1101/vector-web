@@ -19,7 +19,7 @@ export class VectorMockAnalyzer implements AnalyzerAdapter {
     }
 
     // Match known demo examples
-    if (lower.includes('0.0.0.0/0') || (lower.includes('public s3') && lower.includes('ssh'))) {
+    if (lower.includes('customer documents') && lower.includes('ssh open to 0.0.0.0/0')) {
       return {
         ...DEMO_ANALYSIS_EXAMPLE_C,
         id: `vec-res-${Date.now()}`,
@@ -28,7 +28,7 @@ export class VectorMockAnalyzer implements AnalyzerAdapter {
       };
     }
 
-    if (lower.includes('web application') && (lower.includes('rds') || lower.includes('load balancer'))) {
+    if (lower.includes('running a web application behind a load balancer') && lower.includes('rds database')) {
       return {
         ...DEMO_ANALYSIS_EXAMPLE_B,
         id: `vec-res-${Date.now()}`,
@@ -37,7 +37,7 @@ export class VectorMockAnalyzer implements AnalyzerAdapter {
       };
     }
 
-    if (lower.includes('s3') && (lower.includes('storing') || lower.includes('bucket')) && !lower.includes('ec2')) {
+    if (lower === 'create an s3 bucket for storing application documents.' || (lower.includes('storing application documents') && !lower.includes('encrypt') && !lower.includes('public'))) {
       return {
         ...DEMO_ANALYSIS_EXAMPLE_A,
         id: `vec-res-${Date.now()}`,
@@ -167,7 +167,7 @@ export class VectorMockAnalyzer implements AnalyzerAdapter {
     const mentioned: SecurityFinding[] = [];
 
     // Check for risky patterns
-    if (lower.includes('public') && (lower.includes('s3') || lower.includes('bucket') || lower.includes('database') || lower.includes('db'))) {
+    if (lower.includes('public') && (lower.includes('s3') || lower.includes('bucket') || lower.includes('database') || lower.includes('db') || lower.includes('storage'))) {
       riskyFindings.push({
         id: 'c-risk-public',
         label: 'Public Resource Declaration',
@@ -182,7 +182,7 @@ export class VectorMockAnalyzer implements AnalyzerAdapter {
       });
     }
 
-    if (lower.includes('0.0.0.0/0') || lower.includes('anywhere') || lower.includes('open to all')) {
+    if (lower.includes('0.0.0.0/0') || lower.includes('anywhere') || lower.includes('open to all') || (lower.includes('ssh') && (lower.includes('public') || lower.includes('unrestricted') || lower.includes('open to internet')))) {
       riskyFindings.push({
         id: 'c-risk-cidr',
         label: 'Unrestricted Network Ingress (0.0.0.0/0)',
@@ -197,8 +197,39 @@ export class VectorMockAnalyzer implements AnalyzerAdapter {
       });
     }
 
+    if (lower.includes('*:*') || lower.includes('wildcard') || lower.includes('administratoraccess') || lower.includes('admin access') || lower.includes('full access') || lower.includes('action: "*"') || lower.includes('resource: "*"')) {
+      riskyFindings.push({
+        id: 'c-risk-iam-wildcard',
+        label: 'Wildcard IAM Permissions (*)',
+        description: 'Role or policy grants unrestricted wildcard action or resource access.',
+        severity: 'critical',
+        dimension: 'Identity & Access Management',
+        source: 'rule',
+        riskyStatement: 'Wildcard Administrator / Full Access permissions',
+        whyItMatters: 'Wildcard permissions violate least-privilege, allowing total account takeover if credentials leak.',
+        clause: 'Restrict IAM permissions to explicit resource ARNs and specific API actions.',
+        fix: 'Scope IAM policies strictly to required service actions and target ARNs.'
+      });
+    }
+
+    if (lower.includes('access key') || lower.includes('secret key') || lower.includes('password=') || lower.includes('token=') || lower.includes('hardcoded') || lower.includes('credentials in code')) {
+      riskyFindings.push({
+        id: 'c-risk-credentials',
+        label: 'Hardcoded Credentials / Secrets',
+        description: 'Static access keys, passwords, or tokens declared in launch brief.',
+        severity: 'critical',
+        dimension: 'Secrets Management',
+        source: 'rule',
+        riskyStatement: 'Static credentials embedded in prompt configuration',
+        whyItMatters: 'Hardcoded credentials risk exposure in code repos and deployment logs.',
+        clause: 'Retrieve temporary credentials via IAM instance profiles or AWS Secrets Manager.',
+        fix: 'Store secrets in AWS Secrets Manager and use IAM roles for instance credentials.'
+      });
+    }
+
     // Check missing controls
-    if (!lower.includes('encrypt') && !lower.includes('kms') && !lower.includes('sse')) {
+    const mentionsEncryption = lower.includes('encrypt') || lower.includes('kms') || lower.includes('sse');
+    if (!mentionsEncryption) {
       missing.push({
         id: 'c-miss-enc',
         label: 'Encryption at Rest (KMS)',
@@ -212,7 +243,8 @@ export class VectorMockAnalyzer implements AnalyzerAdapter {
       });
     }
 
-    if (!lower.includes('log') && !lower.includes('trail') && !lower.includes('monitor')) {
+    const mentionsLogging = lower.includes('log') || lower.includes('trail') || lower.includes('monitor') || lower.includes('cloudwatch');
+    if (!mentionsLogging) {
       missing.push({
         id: 'c-miss-log',
         label: 'Centralized Logging & CloudWatch',
@@ -226,7 +258,8 @@ export class VectorMockAnalyzer implements AnalyzerAdapter {
       });
     }
 
-    if (!lower.includes('iam') && !lower.includes('least-privilege') && !lower.includes('role')) {
+    const mentionsLeastPrivilege = lower.includes('least-privilege') || lower.includes('least privilege') || lower.includes('scoped role') || lower.includes('granular policy');
+    if (!lower.includes('iam') && !mentionsLeastPrivilege && !lower.includes('role')) {
       missing.push({
         id: 'c-miss-iam',
         label: 'Least-Privilege IAM Boundaries',
@@ -240,7 +273,8 @@ export class VectorMockAnalyzer implements AnalyzerAdapter {
       });
     }
 
-    if (resources.some(r => r.id === 'ec2' || r.id === 'rds') && !lower.includes('private subnet') && !lower.includes('vpc')) {
+    const mentionsPrivateSubnet = lower.includes('private subnet') || lower.includes('private vpc') || lower.includes('internal subnet') || lower.includes('isolated subnet');
+    if (resources.some(r => r.id === 'ec2' || r.id === 'rds') && !mentionsPrivateSubnet && !lower.includes('vpc')) {
       missing.push({
         id: 'c-miss-vpc',
         label: 'VPC Private Subnet Isolation',
@@ -255,7 +289,7 @@ export class VectorMockAnalyzer implements AnalyzerAdapter {
     }
 
     // Mentioned controls
-    if (lower.includes('private') || lower.includes('vpc')) {
+    if (lower.includes('private') || lower.includes('vpc') || mentionsPrivateSubnet) {
       mentioned.push({
         id: 'c-ment-vpc',
         label: 'Network Scoping Specified',
@@ -266,7 +300,7 @@ export class VectorMockAnalyzer implements AnalyzerAdapter {
       });
     }
 
-    if (lower.includes('encrypt') || lower.includes('kms')) {
+    if (mentionsEncryption) {
       mentioned.push({
         id: 'c-ment-enc',
         label: 'Encryption Intent Declared',
@@ -277,14 +311,40 @@ export class VectorMockAnalyzer implements AnalyzerAdapter {
       });
     }
 
+    if (mentionsLogging) {
+      mentioned.push({
+        id: 'c-ment-log',
+        label: 'Logging & Auditing Declared',
+        description: 'Audit trails or monitoring requirements declared.',
+        severity: 'low',
+        source: 'rule',
+        dimension: 'Logging & Monitoring'
+      });
+    }
+
+    if (mentionsLeastPrivilege) {
+      mentioned.push({
+        id: 'c-ment-iam',
+        label: 'Least-Privilege Scoping Declared',
+        description: 'Explicit least-privilege IAM configuration requested.',
+        severity: 'low',
+        source: 'rule',
+        dimension: 'Identity & Access Management'
+      });
+    }
+
     // Compute risk score based on rules
     let baseScore = 20;
-    if (riskyFindings.length > 0) baseScore += riskyFindings.length * 30;
-    if (missing.some(m => m.severity === 'high')) baseScore += 25;
-    if (missing.some(m => m.severity === 'medium')) baseScore += 12;
-    if (mentioned.length > 0) baseScore -= mentioned.length * 8;
+    if (riskyFindings.length > 0) baseScore += 45 + (riskyFindings.length - 1) * 20;
+    if (missing.some(m => m.severity === 'high')) baseScore += 20;
+    if (missing.some(m => m.severity === 'medium')) baseScore += 10;
+    if (mentioned.length > 0) baseScore -= mentioned.length * 6;
 
-    const riskScore = Math.min(95, Math.max(15, baseScore));
+    // A prompt with critical risky findings must never score below 60
+    let riskScore = Math.min(95, Math.max(15, baseScore));
+    if (riskyFindings.some(f => f.severity === 'critical')) {
+      riskScore = Math.max(65, riskScore);
+    }
     let riskLevel: RiskLevel = 'LOW';
     if (riskScore >= 75) riskLevel = 'CRITICAL';
     else if (riskScore >= 60) riskLevel = 'HIGH';
@@ -318,26 +378,29 @@ export class VectorMockAnalyzer implements AnalyzerAdapter {
 
   private detectResources(text: string): AnalysisResource[] {
     const list: AnalysisResource[] = [];
-    if (text.includes('s3') || text.includes('bucket')) {
+    if (text.includes('s3') || text.includes('bucket') || text.includes('object store') || text.includes('blob storage')) {
       list.push({ id: 's3', label: 'Amazon S3', category: 'Storage' });
     }
-    if (text.includes('ec2') || text.includes('instance') || text.includes('server')) {
+    if (text.includes('ec2') || text.includes('instance') || text.includes('server') || text.includes('virtual machine') || text.includes('vm')) {
       list.push({ id: 'ec2', label: 'Amazon EC2', category: 'Compute' });
     }
-    if (text.includes('rds') || text.includes('database') || text.includes('postgres') || text.includes('mysql')) {
+    if (text.includes('rds') || text.includes('database') || text.includes('postgres') || text.includes('mysql') || text.includes('aurora')) {
       list.push({ id: 'rds', label: 'Amazon RDS', category: 'Database' });
     }
-    if (text.includes('load balancer') || text.includes('alb') || text.includes('nlb')) {
+    if (text.includes('load balancer') || text.includes('alb') || text.includes('nlb') || text.includes('elb')) {
       list.push({ id: 'alb', label: 'Application Load Balancer', category: 'Networking' });
     }
-    if (text.includes('lambda') || text.includes('serverless')) {
+    if (text.includes('lambda') || text.includes('serverless') || text.includes('cloud function')) {
       list.push({ id: 'lambda', label: 'AWS Lambda', category: 'Serverless' });
     }
-    if (text.includes('dynamodb') || text.includes('dynamo')) {
+    if (text.includes('dynamodb') || text.includes('dynamo') || text.includes('nosql')) {
       list.push({ id: 'dynamodb', label: 'Amazon DynamoDB', category: 'Database' });
     }
-    if (text.includes('vpc') || text.includes('subnet')) {
+    if (text.includes('vpc') || text.includes('subnet') || text.includes('cidr') || text.includes('security group')) {
       list.push({ id: 'vpc', label: 'Amazon VPC', category: 'Networking' });
+    }
+    if (text.includes('iam') || text.includes('role') || text.includes('policy') || text.includes('permission')) {
+      list.push({ id: 'iam', label: 'AWS IAM', category: 'Security & Identity' });
     }
     return list;
   }

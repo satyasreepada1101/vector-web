@@ -18,6 +18,10 @@ export const Header: React.FC<HeaderProps> = ({
   const [showTooltip, setShowTooltip] = useState(false);
 
   const titles: Record<ActiveTab, { title: string; subtitle: string }> = {
+    about: {
+      title: 'About Vector',
+      subtitle: 'Platform & Diagnostic Architecture'
+    },
     overview: {
       title: 'Infrastructure Security Overview',
       subtitle: 'Dashboard'

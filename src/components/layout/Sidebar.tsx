@@ -9,7 +9,8 @@ import {
   ChevronRight, 
   ExternalLink,
   Shield,
-  X
+  X,
+  Sparkles
 } from 'lucide-react';
 import type { ActiveTab } from '../../types/analysis.ts';
 
@@ -31,7 +32,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   setIsMobileOpen
 }) => {
   const navItems = [
-    { id: 'overview' as ActiveTab, label: 'Overview', icon: LayoutDashboard },
+    { id: 'about' as ActiveTab, label: 'About & Overview', icon: Sparkles },
+    { id: 'overview' as ActiveTab, label: 'Dashboard', icon: LayoutDashboard },
     { id: 'new-analysis' as ActiveTab, label: 'New Analysis', icon: PlusCircle },
     { id: 'history' as ActiveTab, label: 'Analysis History', icon: History },
     { id: 'guidelines' as ActiveTab, label: 'Security Guidelines', icon: BookOpen },

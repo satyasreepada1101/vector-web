@@ -43,7 +43,20 @@ class HistoryStorageService {
       const raw = window.localStorage.getItem(STORAGE_KEY);
       if (!raw) return [];
       try {
-        return JSON.parse(raw) as AnalysisResult[];
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed.filter((item): item is AnalysisResult => {
+          return Boolean(
+            item &&
+            typeof item === 'object' &&
+            typeof item.id === 'string' &&
+            typeof item.prompt === 'string' &&
+            typeof item.riskScore === 'number' &&
+            Array.isArray(item.resources) &&
+            Array.isArray(item.missing) &&
+            Array.isArray(item.riskyFindings)
+          );
+        });
       } catch {
         return [];
       }

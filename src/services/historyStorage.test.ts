@@ -52,4 +52,16 @@ test('historyStorage filters by search query and risk level', () => {
   const sortedByRisk = historyStorage.filterAndSort({ sortBy: 'risk_desc' });
   assert.equal(sortedByRisk[0].riskScore, 85);
   assert.equal(sortedByRisk[1].riskScore, 30);
+
+  // Deletion updates history list
+  historyStorage.delete('test-2');
+  const afterDelete = historyStorage.getAll();
+  assert.equal(afterDelete.length, 1);
+  assert.equal(afterDelete[0].id, 'test-1');
+
+  // Clear all empties list
+  historyStorage.clear();
+  assert.equal(historyStorage.getAll().length, 0);
+  assert.deepEqual(historyStorage.filterAndSort({ search: 'anything' }), []);
 });
+
